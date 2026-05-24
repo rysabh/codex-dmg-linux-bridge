@@ -1,8 +1,27 @@
 # codex-dmg-linux-bridge
 
 A practical guide to run the Codex desktop payload (from `Codex.dmg`) on Linux/Ubuntu.
+## Install instructions by Rishabh
 
-This repository ships scripts and documentation only. It does **not** redistribute proprietary Codex binaries.
+Run the installer from the cloned repo and pass the path to your downloaded DMG:
+
+```bash
+./scripts/codex-install-dmg.sh "$HOME/Downloads/Codex-latest-x64.dmg"
+```
+
+The installer creates the Linux-ready Codex payload inside this repo: `./Codex`
+
+Launch Codex with the desktop-safe wrapper:
+
+```bash
+./scripts/codex-desktop-launch.sh
+```
+
+For a desktop entry, point `Exec` to the absolute path of the wrapper:
+
+```ini
+Exec=/absolute/path/to/codex-dmg-linux-bridge/scripts/codex-desktop-launch.sh
+```
 
 ## 1) What this project does
 
@@ -48,7 +67,7 @@ codex --version
 ```bash
 git clone https://github.com/Mina-Sayed/codex-dmg-linux-bridge.git
 cd codex-dmg-linux-bridge
-chmod +x scripts/codex-dmg-linux-launcher.sh
+chmod +x scripts/*.sh
 ```
 
 ## 5) Get `Codex.dmg`
@@ -171,6 +190,8 @@ More details: `docs/TROUBLESHOOTING.md`.
 ## 13) Important files in this repo
 
 - `scripts/codex-dmg-linux-launcher.sh`: main Linux launcher
+- `scripts/codex-desktop-launch.sh`: desktop-safe launcher wrapper
+- `scripts/codex-install-dmg.sh`: installer that prepares the DMG payload
 - `docs/SETUP.md`: additional setup notes
 - `docs/TROUBLESHOOTING.md`: fixes for common issues
 

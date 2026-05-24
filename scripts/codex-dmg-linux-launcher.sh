@@ -40,7 +40,16 @@ export NODE_ENV=production
 export ELECTRON_RENDERER_URL="file://$APP_DIR/webview/index.html"
 export CODEX_CLI_PATH="$CODEX_BIN"
 
-exec "$NODE_BIN/npx" --yes electron@40.0.0 "$APP_DIR" \
-  --no-sandbox \
-  --ozone-platform=x11 \
-  --disable-features=UseOzonePlatform
+ELECTRON_FLAGS=(
+  --no-sandbox
+  --ozone-platform=x11
+  --disable-features=UseOzonePlatform,CanvasOopRasterization
+  --disable-gpu-compositing
+  --disable-gpu-rasterization
+  --disable-accelerated-2d-canvas
+  --disable-accelerated-compositing
+  --disable-zero-copy
+)
+
+exec "$NODE_BIN/npx" --yes electron@42.1.0 "$APP_DIR" \
+  "${ELECTRON_FLAGS[@]}"

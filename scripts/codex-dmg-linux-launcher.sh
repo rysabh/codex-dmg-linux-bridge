@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RAW_WORKDIR="${CODEX_DMG_WORKDIR:-$HOME/codex-dmg-attempt-latest}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+RAW_WORKDIR="${CODEX_DMG_WORKDIR:-$REPO/Codex}"
 if command -v readlink >/dev/null 2>&1; then
   WORKDIR="$(readlink -f "$RAW_WORKDIR" 2>/dev/null || printf '%s' "$RAW_WORKDIR")"
 else
@@ -9,7 +12,7 @@ else
 fi
 APP_DIR="$WORKDIR/asar-unpacked"
 NODE_BIN="$WORKDIR/tools/node/runtime/bin"
-DEFAULT_CODEX_BIN="/home/linuxbrew/.linuxbrew/bin/codex"
+DEFAULT_CODEX_BIN="$(command -v codex 2>/dev/null || true)"
 
 if [[ -n "${CODEX_CLI_PATH:-}" ]]; then
   CODEX_BIN="$CODEX_CLI_PATH"
@@ -28,8 +31,8 @@ if [[ ! -x "$NODE_BIN/npx" ]]; then
   exit 1
 fi
 
-if [[ ! -x "$CODEX_BIN" ]]; then
-  echo "Missing codex CLI binary at: $CODEX_BIN"
+if [[ -z "$CODEX_BIN" || ! -x "$CODEX_BIN" ]]; then
+  echo "Missing codex CLI binary at: ${CODEX_BIN:-<not found>}"
   echo "Set CODEX_CLI_PATH to a valid codex binary and retry."
   exit 1
 fi
@@ -39,6 +42,7 @@ export BUILD_FLAVOR=prod
 export NODE_ENV=production
 export ELECTRON_RENDERER_URL="file://$APP_DIR/webview/index.html"
 export CODEX_CLI_PATH="$CODEX_BIN"
+export ELECTRON_FORCE_IS_PACKAGED="${ELECTRON_FORCE_IS_PACKAGED:-1}"
 
 ELECTRON_FLAGS=(
   --no-sandbox

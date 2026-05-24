@@ -1,30 +1,8 @@
 # codex-dmg-linux-bridge
 
-Run the Codex desktop payload (from `Codex.dmg`) on Linux/Ubuntu.
+A practical guide to run the Codex desktop payload (from `Codex.dmg`) on Linux/Ubuntu.
 
-## Modified Install instructions by Rishabh
-
-Clone this repository, then run the installer script with the path to your downloaded Codex DMG:
-
-```bash
-git clone https://github.com/rysabh/codex-dmg-linux-bridge.git
-cd codex-dmg-linux-bridge
-chmod +x scripts/codex-install-dmg.sh scripts/codex-dmg-linux-launcher.sh
-scripts/codex-install-dmg.sh "/path/to/Codex-latest-x64.dmg"
-```
-
-The installer creates the Linux runtime payload under:
-
-```bash
-./Codex
-```
-
-After the installer finishes, launch Codex from this repository with:
-
-```bash
-scripts/codex-dmg-linux-launcher.sh
-```
-
+This repository ships scripts and documentation only. It does **not** redistribute proprietary Codex binaries.
 
 ## 1) What this project does
 

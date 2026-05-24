@@ -11,6 +11,29 @@ APP_DIR="$WORKDIR/asar-unpacked"
 NODE_BIN="$WORKDIR/tools/node/runtime/bin"
 DEFAULT_CODEX_BIN="/home/linuxbrew/.linuxbrew/bin/codex"
 
+resolve_electron_version() {
+  local package_json="$APP_DIR/package.json"
+  local version=""
+
+  if [[ -n "${CODEX_ELECTRON_VERSION:-}" ]]; then
+    printf '%s\n' "${CODEX_ELECTRON_VERSION#v}"
+    return 0
+  fi
+
+  if [[ -f "$package_json" && -x "$NODE_BIN/node" ]]; then
+    version="$("$NODE_BIN/node" -p "const pkg = require(process.argv[1]); const version = pkg.devDependencies?.electron || pkg.dependencies?.electron || ''; String(version).replace(/^[~^v]+/, '')" "$package_json")"
+  fi
+
+  if [[ -n "$version" && "$version" != "undefined" ]]; then
+    printf '%s\n' "$version"
+    return 0
+  fi
+
+  echo "Could not detect Electron version from: $package_json" >&2
+  echo "Set CODEX_ELECTRON_VERSION to a valid Electron version and retry." >&2
+  return 1
+}
+
 if [[ -n "${CODEX_CLI_PATH:-}" ]]; then
   CODEX_BIN="$CODEX_CLI_PATH"
 else
@@ -28,6 +51,11 @@ if [[ ! -x "$NODE_BIN/npx" ]]; then
   exit 1
 fi
 
+if [[ ! -x "$NODE_BIN/node" ]]; then
+  echo "Missing Node runtime at: $NODE_BIN"
+  exit 1
+fi
+
 if [[ ! -x "$CODEX_BIN" ]]; then
   echo "Missing codex CLI binary at: $CODEX_BIN"
   echo "Set CODEX_CLI_PATH to a valid codex binary and retry."
@@ -40,6 +68,8 @@ export NODE_ENV=production
 export ELECTRON_RENDERER_URL="file://$APP_DIR/webview/index.html"
 export CODEX_CLI_PATH="$CODEX_BIN"
 
+ELECTRON_VERSION="$(resolve_electron_version)"
+
 ELECTRON_FLAGS=(
   --no-sandbox
   --ozone-platform=x11
@@ -51,5 +81,5 @@ ELECTRON_FLAGS=(
   --disable-zero-copy
 )
 
-exec "$NODE_BIN/npx" --yes electron@42.1.0 "$APP_DIR" \
+exec "$NODE_BIN/npx" --yes "electron@$ELECTRON_VERSION" "$APP_DIR" \
   "${ELECTRON_FLAGS[@]}"

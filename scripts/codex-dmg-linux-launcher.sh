@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Why: Codex ships a macOS payload, but Linux needs a Linux Electron runtime.
+# What: Launch the prepared Codex payload from CODEX_DMG_WORKDIR.
+# How: Read Electron from package.json, set runtime env, then exec npx electron.
+
 RAW_WORKDIR="${CODEX_DMG_WORKDIR:-$HOME/codex-dmg-attempt-latest}"
 if command -v readlink >/dev/null 2>&1; then
   WORKDIR="$(readlink -f "$RAW_WORKDIR" 2>/dev/null || printf '%s' "$RAW_WORKDIR")"

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Why: .desktop launches do not inherit the terminal environment Codex needs.
+# What: Start Codex through the main launcher from desktop entries.
+# How: Set CODEX_DMG_WORKDIR, CODEX_CLI_PATH, and ELECTRON_FORCE_IS_PACKAGED.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 

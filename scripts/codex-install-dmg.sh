@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Why: The Codex DMG contains macOS-native app files that cannot run directly on Linux.
+# What: Build a Linux-ready Codex payload under this repo's Codex/ directory.
+# How: Extract the DMG, unpack app.asar, replace native modules, and rebuild them.
+
 # Install the macOS Codex desktop payload from a DMG on Linux.
 #
 # The script does four broad things:

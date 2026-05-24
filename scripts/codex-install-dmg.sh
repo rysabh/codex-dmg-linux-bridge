@@ -22,8 +22,9 @@ fi
 
 # Primary paths used by every install stage.
 DMG="$(realpath "$1")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKDIR="$HOME/Applications/Codex"
-REPO="${WORKDIR}/codex-dmg-linux-bridge"
 DMG_IMG="$WORKDIR/Codex.img"
 MNT="$WORKDIR/mnt"
 SRCFIX="$WORKDIR/native-src-fix"
@@ -94,12 +95,6 @@ configure_build_environment() {
   mkdir -p "$npm_config_cache" "$npm_config_devdir"
   log "Using isolated npm cache: $npm_config_cache"
   log "Using isolated Electron header cache: $npm_config_devdir"
-}
-
-# Clone the bridge scripts used to launch the extracted Electron payload on Linux.
-clone_bridge_repo() {
-  log "Cloning Linux bridge repository."
-  git clone "git@github.com:rysabh/codex-dmg-linux-bridge.git" "$REPO"
 }
 
 # Convert the input DMG to a raw filesystem image. dmg2img prints very noisy
@@ -342,7 +337,6 @@ main() {
   install_system_dependencies # Install OS packages needed for conversion, mounting, and native builds.
   prepare_workdir # Remove old install output and create a clean work directory.
   configure_build_environment # Keep npm and Electron build caches inside the work directory.
-  clone_bridge_repo # Download the Linux launcher bridge scripts.
   convert_dmg # Convert the DMG into a raw filesystem image.
   copy_app_from_image # Detect APFS or HFS+ and copy Codex.app out of the image.
   unpack_app_payload # Extract app.asar and merge unpacked resources.

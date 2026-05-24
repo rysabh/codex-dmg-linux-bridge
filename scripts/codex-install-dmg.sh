@@ -24,7 +24,7 @@ fi
 DMG="$(realpath "$1")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKDIR="$HOME/Applications/Codex"
+WORKDIR="$REPO/Codex"
 DMG_IMG="$WORKDIR/Codex.img"
 MNT="$WORKDIR/mnt"
 SRCFIX="$WORKDIR/native-src-fix"

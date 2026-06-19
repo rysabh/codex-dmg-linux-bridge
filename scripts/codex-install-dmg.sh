@@ -169,6 +169,45 @@ unpack_app_payload() {
   cp -a "$APP_RES/app.asar.unpacked/." "$WORKDIR/asar-unpacked/"
 }
 
+# Stub OpenAI's custom Electron "Owl feature" binding for stock Electron.
+#
+# Newer Codex builds call process._linkedBinding('electron_common_owl_features')
+# during main-process startup. That binding exists only in OpenAI's custom
+# Electron build, so the stock Electron we launch with throws
+#   No such binding was linked: electron_common_owl_features
+# and the app aborts with "Codex failed to start". We prepend a tiny shim to the
+# app's main entry that answers just that one binding with a no-op feature set
+# (every Owl feature reported disabled) and delegates all other bindings to the
+# real implementation. The two sibling bindings (electron_browser_owl_update_-
+# policies and electron_browser_owl_profile_importer) already guard their own
+# absence with try/catch, so only this one needs a stub.
+patch_owl_feature_binding() {
+  local app_dir="$WORKDIR/asar-unpacked"
+  local main_rel main_file shim_file
+
+  main_rel="$(node -p "require('$app_dir/package.json').main || '.vite/build/bootstrap.js'")"
+  main_file="$app_dir/$main_rel"
+
+  if [[ ! -f "$main_file" ]]; then
+    log "Owl shim: main entry not found at $main_file; skipping."
+    return 0
+  fi
+
+  if grep -q "codex-dmg-linux-bridge owl shim" "$main_file"; then
+    log "Owl feature binding shim already present in $main_rel."
+    return 0
+  fi
+
+  log "Injecting Owl feature binding shim into $main_rel."
+  shim_file="$(mktemp)"
+  cat > "$shim_file" <<'OWL_SHIM'
+/* codex-dmg-linux-bridge owl shim: stock Electron lacks the custom electron_common_owl_features binding */(function(){try{var __o=process._linkedBinding;if(typeof __o==="function"&&!process.__codexOwlShim){process.__codexOwlShim=true;process._linkedBinding=function(__n){if(__n==="electron_common_owl_features"){return{isOwlFeatureEnabled:function(){return false;}};}return __o.call(process,__n);};}}catch(__e){}})();
+OWL_SHIM
+  cat "$shim_file" "$main_file" > "$main_file.codex-owl-tmp"
+  mv "$main_file.codex-owl-tmp" "$main_file"
+  rm -f "$shim_file"
+}
+
 # Read the Electron and native module versions from the extracted app payload.
 # These versions drive the launcher patch and the native module rebuild process.
 detect_versions() {
@@ -342,6 +381,7 @@ main() {
   convert_dmg # Convert the DMG into a raw filesystem image.
   copy_app_from_image # Detect APFS or HFS+ and copy Codex.app out of the image.
   unpack_app_payload # Extract app.asar and merge unpacked resources.
+  patch_owl_feature_binding # Stub OpenAI's custom Electron Owl feature binding for stock Electron.
   detect_versions # Read Electron and native module versions from the payload.
   patch_launcher_electron_version # Make the launcher use the payload's Electron version.
   rebuild_native_modules # Replace macOS-native modules and rebuild them for Linux.

@@ -43,14 +43,14 @@ Exec=/absolute/path/to/codex-dmg-linux-bridge/scripts/codex-desktop-launch.sh
 - `bash`
 - `git`
 - `node` + `npm` + `npx`
-- `7z` (to extract DMG contents)
+- `dmg2img` (to convert DMG contents)
 - `codex` CLI
 
 Install dependencies on Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install -y p7zip-full git curl
+sudo apt install -y dmg2img build-essential python3 make g++ pkg-config libsqlite3-dev git curl
 ```
 
 Verify your environment:
@@ -61,6 +61,10 @@ npm -v
 npx -v
 codex --version
 ```
+
+For an APFS-formatted DMG, also install `apfs-fuse` using the package or build
+method appropriate for your Linux distribution. HFS+-formatted DMGs use the
+kernel's `hfsplus` driver, which is available on standard Ubuntu kernels.
 
 ## 4) Clone this repository
 
@@ -178,6 +182,10 @@ CODEX_CLI_PATH="/home/linuxbrew/.linuxbrew/bin/codex" \
 
 - `Missing app payload at .../asar-unpacked`
   - `app.asar` was not extracted correctly.
+- `Could not find an application bundle containing Contents/Resources/app.asar`
+  - The DMG did not contain a supported Electron application bundle. The
+    installer accepts either `Codex.app`, `ChatGPT.app`, or another bundle name;
+    it identifies the payload by `app.asar`, not by the bundle's display name.
 - `Missing Node runtime at .../tools/node/runtime/bin`
   - Create the `npx` symlink step in section 6.3.
 - `Unable to locate the Codex CLI binary`

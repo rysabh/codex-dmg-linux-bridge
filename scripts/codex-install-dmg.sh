@@ -6,7 +6,7 @@ set -euo pipefail
 # How: Extract the DMG, unpack app.asar, replace native modules, and rebuild them.
 
 # The script does four broad things:
-#   1. Convert the DMG into a mountable image and copy Codex.app out of it.
+#   1. Convert the DMG into a mountable image and copy the application bundle out of it.
 #   2. Extract the Electron app payload from app.asar.
 #   3. Replace macOS-native Node modules with Linux-buildable sources.
 #   4. Rebuild those native modules for the Electron version shipped by Codex.
@@ -23,12 +23,13 @@ if [[ $# -lt 1 ]]; then
 fi
 
 # Primary paths used by every install stage.
-DMG="$(realpath "$1")"
+DMG="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKDIR="$REPO/Codex"
 DMG_IMG="$WORKDIR/Codex.img"
 MNT="$WORKDIR/mnt"
+HFS_MNT="$WORKDIR/mnt-hfs"
 SRCFIX="$WORKDIR/native-src-fix"
 
 # Values discovered during the install. They are global so the top-level flow
@@ -53,6 +54,9 @@ fail() {
   exit 1
 }
 
+[[ -f "$DMG" ]] || fail "DMG file does not exist: $DMG"
+DMG="$(realpath "$DMG")"
+
 # Best-effort cleanup for mounts and the background sudo keepalive process.
 # This runs on every script exit, including failures during npm or compilation.
 cleanup_mounts() {
@@ -60,7 +64,7 @@ cleanup_mounts() {
     kill "$SUDO_KEEPALIVE" 2>/dev/null || true
   fi
   fusermount -u "$MNT" 2>/dev/null || true
-  sudo umount /mnt/codexdmg 2>/dev/null || true
+  sudo umount "$HFS_MNT" 2>/dev/null || true
 }
 
 # Ask for sudo once and keep it fresh while long conversion/build steps run.
@@ -79,6 +83,23 @@ install_system_dependencies() {
   log "Installing system dependencies."
   sudo apt-get update -qq
   sudo apt-get install -y dmg2img build-essential python3 make g++ pkg-config libsqlite3-dev
+}
+
+# Check the tools supplied outside apt. Node.js supplies npm/npx and is required
+# to unpack app.asar and rebuild the native modules for the bundled Electron ABI.
+validate_prerequisites() {
+  local command_name
+  local missing=()
+
+  for command_name in node npm npx file dmg2img; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+      missing+=("$command_name")
+    fi
+  done
+
+  if ((${#missing[@]} > 0)); then
+    fail "Missing required commands: ${missing[*]}. Install Node.js (node, npm, npx), then retry."
+  fi
 }
 
 # Remove any previous install output and create the work directory for this run.
@@ -106,38 +127,69 @@ convert_dmg() {
   dmg2img -p 4 "$DMG" "$DMG_IMG" > "$WORKDIR/dmg2img.log" 2>&1
 }
 
-# Mount an APFS image with FUSE and copy Codex.app out of it.
-# Current Codex DMGs have used this layout, with Codex.app under root/.
+# Locate the single macOS application bundle that contains the Electron payload.
+# DMG filenames and bundle names are independently versioned: for example, a
+# Codex download may currently contain ChatGPT.app. Matching app.asar rather
+# than the display name supports either branding without copying an unrelated
+# .app bundle from a more complex image.
+find_app_bundle() {
+  local image_root="$1"
+  local candidate
+  local candidates=()
+
+  while IFS= read -r -d '' candidate; do
+    if [[ -f "$candidate/Contents/Resources/app.asar" ]]; then
+      candidates+=("$candidate")
+    fi
+  done < <(find "$image_root" -type d -name '*.app' -prune -print0)
+
+  if ((${#candidates[@]} == 0)); then
+    fail "Could not find an application bundle containing Contents/Resources/app.asar in $image_root."
+  fi
+
+  if ((${#candidates[@]} > 1)); then
+    printf 'ERROR: Multiple application bundles contain app.asar:\n' >&2
+    printf '  %s\n' "${candidates[@]}" >&2
+    fail "Cannot select an application bundle automatically."
+  fi
+
+  APP_SRC="${candidates[0]}"
+}
+
+# Mount an APFS image with FUSE and copy the validated app bundle out of it.
 copy_app_from_apfs() {
   command -v apfs-fuse >/dev/null 2>&1 || fail "Converted DMG is APFS, but apfs-fuse is not installed."
 
   log "Mounting APFS image with apfs-fuse."
   apfs-fuse -o uid="$(id -u)",gid="$(id -g)" "$DMG_IMG" "$MNT"
 
-  APP_SRC="$(find "$MNT" -maxdepth 3 -type d -name "Codex.app" -print -quit)"
-  [[ -n "$APP_SRC" ]] || fail "Could not find Codex.app inside APFS image."
+  find_app_bundle "$MNT"
 
-  log "Copying Codex.app from APFS image: $APP_SRC"
+  log "Copying application bundle from APFS image: $APP_SRC"
   cp -a "$APP_SRC" "$WORKDIR/Codex.app"
 
   log "Unmounting APFS image."
   fusermount -u "$MNT"
 }
 
-# Mount an HFS+ image with the Linux kernel hfsplus driver and copy Codex.app.
+# Mount an HFS+ image with the Linux kernel hfsplus driver and copy the
+# validated app bundle. Keeping the mount under WORKDIR prevents concurrent or
+# interrupted installs on different repositories from sharing /mnt/codexdmg.
 # This keeps compatibility with older or differently-packaged DMG images.
 copy_app_from_hfs() {
   log "Mounting HFS+ image with kernel hfsplus support."
-  sudo mkdir -p /mnt/codexdmg
+  mkdir -p "$HFS_MNT"
   sudo modprobe hfsplus
-  sudo mount -t hfsplus -o loop,ro "$DMG_IMG" /mnt/codexdmg
+  sudo mount -t hfsplus -o loop,ro "$DMG_IMG" "$HFS_MNT"
 
-  log "Copying Codex.app from HFS+ image."
-  sudo cp -a /mnt/codexdmg/Codex.app "$WORKDIR/Codex.app"
+  find_app_bundle "$HFS_MNT"
+
+  log "Copying application bundle from HFS+ image: $APP_SRC"
+  sudo cp -a "$APP_SRC" "$WORKDIR/Codex.app"
 
   log "Unmounting HFS+ image."
-  sudo umount /mnt/codexdmg
-  sudo chown -R "$USER":"$USER" "$WORKDIR/Codex.app"
+  sudo umount "$HFS_MNT"
+  sudo chown -R "$(id -u):$(id -g)" "$WORKDIR/Codex.app"
 }
 
 # Detect the converted image filesystem and dispatch to the matching copy path.
@@ -379,7 +431,8 @@ main() {
   prepare_workdir # Remove old install output and create a clean work directory.
   configure_build_environment # Keep npm and Electron build caches inside the work directory.
   convert_dmg # Convert the DMG into a raw filesystem image.
-  copy_app_from_image # Detect APFS or HFS+ and copy Codex.app out of the image.
+  validate_prerequisites # Verify Node.js and the installed conversion tools before unpacking.
+  copy_app_from_image # Detect APFS or HFS+ and copy the validated app bundle.
   unpack_app_payload # Extract app.asar and merge unpacked resources.
   patch_owl_feature_binding # Stub OpenAI's custom Electron Owl feature binding for stock Electron.
   detect_versions # Read Electron and native module versions from the payload.

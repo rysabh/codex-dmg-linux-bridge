@@ -67,6 +67,15 @@ if [[ ! -x "$CODEX_BIN" ]]; then
 fi
 
 export PATH="$NODE_BIN:$PATH"
+# Keep Electron downloads and npm metadata with the prepared payload. Desktop
+# launchers and managed Linux accounts may not permit writes to ~/.npm.
+export npm_config_cache="$WORKDIR/npm-cache"
+export NPM_CONFIG_CACHE="$npm_config_cache"
+# Electron derives its user profile from XDG_CONFIG_HOME. Defaulting it inside
+# WORKDIR lets the bridge run when a desktop session cannot write to $HOME.
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$WORKDIR/config}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$WORKDIR/cache}"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 export BUILD_FLAVOR=prod
 export NODE_ENV=production
 export ELECTRON_RENDERER_URL="file://$APP_DIR/webview/index.html"
